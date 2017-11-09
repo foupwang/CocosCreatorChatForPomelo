@@ -338,48 +338,6 @@ cc.Class({
         }
     },
 
-    processCommand: function(msg) {
-        var self = this;
-        var words = msg.split(' ');
-        var command = words[0].substring(1, words[0].length).toLowerCase();
-        var ret = false;
-
-        switch(command) {
-            case 'join':
-                words.shift();
-                let room = words.join(' ');
-                self.changeRoom(room);
-                break;
-            case 'nick':
-                words.shift();
-                let name = words.join(' ');
-                self.changeName(name);
-                break;
-            default:
-                ret = 'Unrecognized command.';
-                break;
-        }
-        return ret;
-    },
-
-    changeRoom: function(room) {
-        var self = this;
-
-        var route = "chat.chatHandler.changeRoom";
-        var username = self.userName;
-
-        pomelo.request(route, {
-            rid: room,
-            username: self.userName,
-        }, function(data) {
-            cc.log("ChatClient.changeRoom: user: " +data.users);
-        });
-    },
-
-    changeName: function(name) {
-
-    },
-
     showError: function(content) {
         cc.log("ChatClient.showError: ", content);
     },
