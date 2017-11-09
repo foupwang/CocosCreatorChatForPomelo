@@ -49,30 +49,3 @@ handler.send = function(msg, session, next) {
 		route: msg.route
 	});
 };
-
-handler.changeRoom = function(msg, session, next) {
-	console.log("chat.handler.changeRoom: new room is " +msg.rid);
-
-	var self = this;
-	// leave from old channel
-	self.app.rpc.chat.chatRemote.kick(session, session.uid, self.app.get('serverId'), session.get('rid'), null);
-
-	var rid = msg.rid;
-	var uid = msg.username + '*' + rid;
-	session.bind(uid);
-	session.set('rid', rid);
-
-	//put user into new channel
-	self.app.rpc.chat.chatRemote.add(session, uid, self.app.get('serverId'), rid, true, function(users){
-		next(null, {
-			users:users
-		});
-	});
-};
-
-handler.changeName = function(msg, session, next) {
-	var rid = session.get('rid');
-	next(null, {
-		route: msg.route
-	});
-};

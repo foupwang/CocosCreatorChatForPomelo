@@ -69,8 +69,7 @@ cc.Class({
 
         self.connectServer();
 
-        this.isShowUser  = false;
-        this.scheduleOnce(this.scrollDown, 0);
+        self.scheduleOnce(self.scrollDown, 0);
     },
 
     initPomelo: function() {
@@ -125,11 +124,11 @@ cc.Class({
                     cc.log("ChatClient.connectServer: pomelo.request return data: " +data);
                     if (data.error) {
                         self.showError(DUPLICATE_ERROR);
-                        retrn;
+                        return;
                     }
     
-                    self.showChat();
-                    self.initUserList(data);
+                    self.initChat();
+                    self.initUsers(data);
                 });
             });
         });
@@ -165,56 +164,21 @@ cc.Class({
         });
     },
 
-    showChat: function() {
+    initChat: function() {
         this.userListView.setChat(this);
         this.userListView.hide();
         this.scrollDown();
     },
 
-    // add message on board
-    addMessage: function(from, target, text, time) {
-        cc.log("chat.addMessage() is called.");
-
-        var name = (target == '*' ? 'all' : target);
-        if (text === null) {
-            return;
+    initUsers: function(data) {
+        this.users = data.users;
+        this.users.splice(0, 0, "all");
+        var tip = 'Users currently in ' + this.roomName + ': ';
+        for (var i = 0; i < this.users.length; i++) {
+            cc.log('ChatClient.initUsers(): users ' +i +': ' +this.users[i]);
+            tip += this.users[i] + ',';
         }
-        if (time == null) {
-            // if the time is null or undefined, use the current time.
-            time = new Date();
-        } else if ((time instanceof Date) === false) {
-            // if it is a timestamp, interpret it
-            time = new Date(time);
-        }
-
-        // every message you see is actually a table with 3 cols:
-        // the time, 
-        // the person who caused the event,
-        // and the content
-        text = util.toStaticHTML(text);
-
-        var curMsg = "";
-        if (from == "") {
-            curMsg = util.timeString(time) + " tip: " + text + '\n';
-        } else {
-            curMsg = util.timeString(time) + " " + util.toStaticHTML(from) + " says to " + name + ": " + text + "\n";
-        }
-
-        this.msgLabel.string = this.msgLabel.string + curMsg;
-        
-        this.scrollDown();
-    },
-
-    scrollDown: function() {
-        cc.log("chat.scrollDown(): is called.");
-
-        var content = this.scrollViewMsg.content;
-        if (content.height <= this.scrollViewMsg.node.height) {
-            cc.log("chat.scrollDown(): return false ")
-            return;
-        }
-
-        this.scrollViewMsg.scrollToBottom();
+        this.addMessage("", "", tip);
     },
 
     tip: function(type, name) {
@@ -236,29 +200,16 @@ cc.Class({
         this.addMessage("", "", title + " " + tip);
     },
 
-    initUserList: function(data) {
-        cc.log('ChatClient.initUserList() is called.');
-        
-        this.users = data.users;
-        this.users.splice(0, 0, "all");
-        var tip = 'Users currently in ' + this.roomName + ': ';
-        for (var i = 0; i < this.users.length; i++) {
-            cc.log('users ' +i +': ' +this.users[i]);
-            tip += this.users[i] + ',';
-        }
-        this.addMessage("", "", tip);
-    },
-
     // add user in user list
     addUser: function(user) {
-        cc.log("chat.addUser(): user is " +user);
+        cc.log('ChatClient.addUser(): user=' +user);
         this.users[this.users.length] = user;
-        this.userListView.setUsers(this.users);
+        this.userListView.loadByUsers(this.users);
     },
 
     // remove user from user list
     removeUser: function(user) {
-        cc.log('chat.removeUser: user=' +user);
+        cc.log('ChatClient.removeUser(): user=' +user);
         var index = -1;
         for (var i = 0; i < this.users.length; i++) {
             if (this.users[i] == user) {
@@ -270,7 +221,7 @@ cc.Class({
             this.users.splice(index, 1);
         }
 
-        this.userListView.setUsers(this.users);
+        this.userListView.loadByUsers(this.users);
 
         var target = this.targetLabel.string;
         if (target == user) {
@@ -279,11 +230,11 @@ cc.Class({
     },
 
     showUserList: function() {
-        cc.log('chat.showUserList() is called');
+        cc.log('ChatClient.showUserList(): is called');
         
         this.isShowUser = !this.isShowUser;
         if (this.isShowUser) {
-            this.userListView.setUsers(this.users);
+            this.userListView.loadByUsers(this.users);
             this.userListView.show();
         } else {
             this.userListView.hide();
@@ -292,15 +243,13 @@ cc.Class({
     },
 
     chooseUser: function(index) {
-        cc.log('chat.chooseUser: index=' +index);
+        cc.log('ChatClient.chooseUser(): index=' +index);
         this.isShowUser = false;
         this.targetLabel.string = this.users[index];
         this.userListView.hide();
     },
 
     sendMsg: function() {
-        cc.log("ChatClient.sendMsg()");
-
         var self = this;
         var msg = self.edtMsg.string.replace("\n", "");
         if (msg.length == 0) {
@@ -308,13 +257,7 @@ cc.Class({
             return;
         }
 
-        if (msg.charAt(0) == '/') {
-            var sysMsg = self.processCommand(msg);
-            if (sysMsg) {
-                self.addMessage('', '', sysMsg);
-            }
-            return;
-        }
+        cc.log('ChatClient.sendMsg(): msg=' +msg);
 
         var route = "chat.chatHandler.send";
         var target = self.targetLabel.string;
@@ -336,6 +279,50 @@ cc.Class({
                 }
             });
         }
+    },
+
+    // add message on board
+    addMessage: function(from, target, text, time) {
+        cc.log("ChatClient.addMessage(): is called.");
+
+        var name = (target == '*' ? 'all' : target);
+        if (text === null) {
+            return;
+        }
+        if (time == null) {
+            // if the time is null or undefined, use the current time.
+            time = new Date();
+        } else if ((time instanceof Date) === false) {
+            // if it is a timestamp, interpret it
+            time = new Date(time);
+        }
+
+        // every message you see is actually a table with 3 cols:
+        // the time, 
+        // the person who caused the event,
+        // and the content
+        text = util.toStaticHTML(text);
+
+        var curMsg = "";
+        if (from == "") {
+            curMsg = util.timeString(time) + " " + text + '\n';
+        } else {
+            curMsg = util.timeString(time) + " " + util.toStaticHTML(from) + " says to " + name + ": " + text + "\n";
+        }
+
+        this.msgLabel.string = this.msgLabel.string + curMsg;
+        
+        this.scrollDown();
+    },
+
+    scrollDown: function() {
+        var content = this.scrollViewMsg.content;
+        if (content.height <= this.scrollViewMsg.node.height) {
+            cc.log('ChatClient.scrollDown(): return false');
+            return;
+        }
+
+        this.scrollViewMsg.scrollToBottom();
     },
 
     showError: function(content) {
