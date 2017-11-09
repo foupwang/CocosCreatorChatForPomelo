@@ -37,19 +37,43 @@ var util = {
 	}
 };
 
+var ListView = require('UserListView');
+
 cc.Class({
     extends: cc.Component,
 
     properties: {
         
+        serverIP: "127.0.0.1",
+        serverPort: "3014",
+        userName: "Guest1",
+        roomName: "MyRoom1",
+
         scrollViewMsg: cc.ScrollView,
         edtMsg: cc.EditBox,
-
         msgLabel: cc.Label,
+
+        userListView: {
+            default: null,
+            type: ListView,
+        },
+        targetLabel: cc.Label,
+        isShowUser: 0,
     },
 
     // use this for initialization
     onLoad: function () {
+        var self = this;
+
+        self.initPomelo();
+
+        self.connectServer();
+
+        this.isShowUser  = false;
+        this.scheduleOnce(this.scrollDown, 0);
+    },
+
+    initPomelo: function() {
         var self = this;
 
         // wait message from the server.
@@ -61,14 +85,14 @@ cc.Class({
         pomelo.on('onAdd', function(data) {
             var user = data.user;
             self.tip('online', user);
-            //self.addUser(user);
+            self.addUser(user);
         });
 
         // update user info
         pomelo.on('onLeave', function(data) {
             var user = data.user;
             self.tip('offline', user);
-            //self.removeUser(user);
+            self.removeUser(user);
         });
 
         // handle disconnect message, occours when the client is disconnect with servers
@@ -81,11 +105,13 @@ cc.Class({
             cc.log("pomelo.on(io-error): ", data);
             self.showError("error to connect");
         });
+    },
 
-        this.scheduleOnce(this.scrollDown, 0);
+    connectServer: function() {
+        var self = this;
 
         // query entry of server
-        self.queryEntry(Global.userName, function(host, port) {
+        self.queryEntry(self.userName, function(host, port) {
             pomelo.init({
                 host: host,
                 port: port,
@@ -93,22 +119,20 @@ cc.Class({
             }, function() {
                 var route = "connector.entryHandler.enter";
                 pomelo.request(route, {
-                    username: Global.userName,
-                    rid: Global.roomName
+                    username: self.userName,
+                    rid: self.roomName
                 }, function(data) {
-                    cc.log("pomelo.request return data: " +data);
+                    cc.log("ChatClient.connectServer: pomelo.request return data: " +data);
                     if (data.error) {
                         self.showError(DUPLICATE_ERROR);
                         retrn;
                     }
     
-                    self.userName = Global.userName;
-                    self.roomName = Global.roomName;
-    
+                    self.showChat();
+                    self.initUserList(data);
                 });
             });
         });
-
     },
 
     // called every frame, uncomment this function to activate update callback
@@ -116,14 +140,13 @@ cc.Class({
 
     // },
 
-
     queryEntry: function(uid, callback) {
         var self = this;
 
         var route = "gate.gateHandler.queryEntry";
         pomelo.init({
-            host: Global.serverIP,
-            port: Global.serverPort,
+            host: self.serverIP,
+            port: self.serverPort,
             log: true
         }, function() {
             pomelo.request(route, {
@@ -137,9 +160,15 @@ cc.Class({
                     return;
                 }
 
-                callback(Global.serverIP, data.port);
+                callback(data.host, data.port);
             });
         });
+    },
+
+    showChat: function() {
+        this.userListView.setChat(this);
+        this.userListView.hide();
+        this.scrollDown();
     },
 
     // add message on board
@@ -166,7 +195,7 @@ cc.Class({
 
         var curMsg = "";
         if (from == "") {
-            curMsg = util.timeString(time) + " tip: " + text;
+            curMsg = util.timeString(time) + " tip: " + text + '\n';
         } else {
             curMsg = util.timeString(time) + " " + util.toStaticHTML(from) + " says to " + name + ": " + text + "\n";
         }
@@ -180,10 +209,9 @@ cc.Class({
         cc.log("chat.scrollDown(): is called.");
 
         var content = this.scrollViewMsg.content;
-
         if (content.height <= this.scrollViewMsg.node.height) {
             cc.log("chat.scrollDown(): return false ")
-            //return;
+            return;
         }
 
         this.scrollViewMsg.scrollToBottom();
@@ -208,14 +236,70 @@ cc.Class({
         this.addMessage("", "", title + " " + tip);
     },
 
+    initUserList: function(data) {
+        cc.log('ChatClient.initUserList() is called.');
+        
+        this.users = data.users;
+        this.users.splice(0, 0, "all");
+        var tip = 'Users currently in ' + this.roomName + ': ';
+        for (var i = 0; i < this.users.length; i++) {
+            cc.log('users ' +i +': ' +this.users[i]);
+            tip += this.users[i] + ',';
+        }
+        this.addMessage("", "", tip);
+    },
+
     // add user in user list
     addUser: function(user) {
         cc.log("chat.addUser(): user is " +user);
+        this.users[this.users.length] = user;
+        this.userListView.setUsers(this.users);
+    },
+
+    // remove user from user list
+    removeUser: function(user) {
+        cc.log('chat.removeUser: user=' +user);
+        var index = -1;
+        for (var i = 0; i < this.users.length; i++) {
+            if (this.users[i] == user) {
+                index = i;
+                break;
+            }
+        }
+        if (index != -1) {
+            this.users.splice(index, 1);
+        }
+
+        this.userListView.setUsers(this.users);
+
+        var target = this.targetLabel.string;
+        if (target == user) {
+            this.targetLabel.string = "all";
+        }
+    },
+
+    showUserList: function() {
+        cc.log('chat.showUserList() is called');
+        
+        this.isShowUser = !this.isShowUser;
+        if (this.isShowUser) {
+            this.userListView.setUsers(this.users);
+            this.userListView.show();
+        } else {
+            this.userListView.hide();
+        }
         
     },
 
+    chooseUser: function(index) {
+        cc.log('chat.chooseUser: index=' +index);
+        this.isShowUser = false;
+        this.targetLabel.string = this.users[index];
+        this.userListView.hide();
+    },
+
     sendMsg: function() {
-        cc.log("chat.sendMsg()");
+        cc.log("ChatClient.sendMsg()");
 
         var self = this;
         var msg = self.edtMsg.string.replace("\n", "");
@@ -224,14 +308,25 @@ cc.Class({
             return;
         }
 
+        if (msg.charAt(0) == '/') {
+            var sysMsg = self.processCommand(msg);
+            if (sysMsg) {
+                self.addMessage('', '', sysMsg);
+            }
+            return;
+        }
+
         var route = "chat.chatHandler.send";
-        var target = "*";
-        var rid = Global.roomName;
-        var username = Global.userName;
+        var target = self.targetLabel.string;
+        if (target == 'all') {
+            target = '*';
+        }
+
+        var username = self.userName;
 
         if (!util.isBlank(msg)) {
             pomelo.request(route, {
-                rid: rid,
+                rid: self.roomName,
                 content: msg,
                 from: username,
                 target: target
@@ -243,10 +338,50 @@ cc.Class({
         }
     },
 
+    processCommand: function(msg) {
+        var self = this;
+        var words = msg.split(' ');
+        var command = words[0].substring(1, words[0].length).toLowerCase();
+        var ret = false;
+
+        switch(command) {
+            case 'join':
+                words.shift();
+                let room = words.join(' ');
+                self.changeRoom(room);
+                break;
+            case 'nick':
+                words.shift();
+                let name = words.join(' ');
+                self.changeName(name);
+                break;
+            default:
+                ret = 'Unrecognized command.';
+                break;
+        }
+        return ret;
+    },
+
+    changeRoom: function(room) {
+        var self = this;
+
+        var route = "chat.chatHandler.changeRoom";
+        var username = self.userName;
+
+        pomelo.request(route, {
+            rid: room,
+            username: self.userName,
+        }, function(data) {
+            cc.log("ChatClient.changeRoom: user: " +data.users);
+        });
+    },
+
+    changeName: function(name) {
+
+    },
 
     showError: function(content) {
-        cc.log("error: ", content);
-
+        cc.log("ChatClient.showError: ", content);
     },
 
 
