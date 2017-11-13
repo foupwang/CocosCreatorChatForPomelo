@@ -75,7 +75,7 @@ cc.Class({
     },
 
     clickedItem: function(itemId) {
-        cc.log('UserListView.clickedItem: itemId' +itemId);
+        cc.log('UserListView.clickedItem: itemId=' +itemId);
         this.chat.chooseUser(itemId);
     },
 
