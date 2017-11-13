@@ -49,6 +49,9 @@ cc.Class({
         userName: "Guest1",
         roomName: "MyRoom1",
 
+        gateServerLabel: cc.Label, // gate server status
+        connectorServerLabel: cc.Label, 
+
         scrollViewMsg: cc.ScrollView,
         edtMsg: cc.EditBox,
         msgLabel: cc.Label,
@@ -59,6 +62,7 @@ cc.Class({
         },
         targetLabel: cc.Label,
         isShowUser: 0,
+
     },
 
     // use this for initialization
@@ -127,6 +131,9 @@ cc.Class({
                         return;
                     }
     
+                    let status = 'Success to connect ConnectorServer(' + host + ':' +port +')!';
+                    self.connectorServerLabel.string = status;
+
                     self.initChat();
                     self.initUsers(data);
                 });
@@ -159,6 +166,9 @@ cc.Class({
                     return;
                 }
 
+                let status = 'Success to connect GateServer(' + self.serverIP + ':' +self.serverPort +')!';
+                self.gateServerLabel.string = status;
+
                 callback(data.host, data.port);
             });
         });
@@ -172,13 +182,14 @@ cc.Class({
 
     initUsers: function(data) {
         this.users = data.users;
-        this.users.splice(0, 0, "all");
         var tip = 'Users currently in ' + this.roomName + ': ';
         for (var i = 0; i < this.users.length; i++) {
             cc.log('ChatClient.initUsers(): users ' +i +': ' +this.users[i]);
             tip += this.users[i] + ',';
         }
         this.addMessage("", "", tip);
+
+        this.users.splice(0, 0, "all");
     },
 
     tip: function(type, name) {
